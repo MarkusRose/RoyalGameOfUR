@@ -1,6 +1,6 @@
 """ This is the Royal Game of UR """
 import numpy as np
-
+import game_user_interface as gui
 
 class UrBoard:
 
@@ -65,6 +65,7 @@ class UrBoard:
         roll = self.dice.value
         if roll == 0 or move < 0:
             self.turn = self.opponent()
+            self.board_string = self.board_to_string()
             return
         self.board[move][self.turn] -= 1
         self.board[move + roll][self.turn] += 1
@@ -82,6 +83,21 @@ class UrBoard:
     def opponent(self):
         return "".join(chrctr for chrctr in "WB" if chrctr != self.turn)
 
+    def check_game_over_condition(self):
+        idx = self.board_string.find('f')
+        finished_pieces = self.board_string[idx+1:]
+        white_score = 0
+        black_score = 0
+        for p in finished_pieces:
+            if p == "W":
+                white_score += 1
+                if white_score >= 7:
+                    return True, "W"
+            elif p == "B":
+                black_score += 1
+                if black_score >= 7:
+                    return True, "W"
+        return False, None
 
 
 class Dice:
@@ -187,11 +203,11 @@ def display_board(board_string):
 
     if white_converted >= 7:
         print("Player White wins! Congratulations.")
-        return True
+        return False
     elif black_converted >= 7:
         print("Player Black wins! Congratulations.")
-        return True
-    return False
+        return False
+    return True
 
 
 def main():
@@ -200,52 +216,62 @@ def main():
     quit_game = False
     values = np.zeros((5), dtype=int)
     game_board = UrBoard()
-    players = [
-        Player("Black"),
-        Player("White"),
-    ]
+    tabletop = gui.TableTopLayout()
+    tabletop.setup_table(game_string=game_board.board_string, dice_roll=None)
 
     # Game loop
+
     loop_counter = 0
-    quit_game = display_board(game_board.board_string)
-    game_board.roll_dice()
-    while True:
-        if quit_game:
-            break
-        loop_counter += 1
-        print(f"Move {loop_counter}: {game_board.turn} rolled a {game_board.dice.value}")
-        possible_moves = game_board.possible_moves()
-        if possible_moves:
+    running = True
+    display_board(game_board.board_string)
+    dice_rolled = False
+    possible_moves = []
+    while running:
+        tabletop.clock.tick(60)
 
-            print(f"Possible moves are {possible_moves}")
-
-            # process input
-            in_string = input("What move to make? ")
-            if in_string == 'q':
-                quit_game = True
-                continue
-            elif not in_string in [f"{i}" for i in range(16)]:
-                print("Not a possible move. Please select again or press 'q' to quit.")
-                continue
-
-
-            chosen_move = int(in_string, base=10)
-            if chosen_move in possible_moves:
-                print(f"Making move {in_string}")
+        # Process input
+        running, tile_value = tabletop.event_handler()
+        if not dice_rolled:
+            if tile_value and tile_value == 42:
+                dice_rolled = True
             else:
-                print(f"The selected move is not possible! Please choose again!")
-                loop_counter -= 1
                 continue
         else:
-            chosen_move = -1
+            if not tile_value is None and tile_value in possible_moves:
+                print(tile_value)
+                chosen_move = tile_value
+                dice_rolled = False
+            elif not tile_value is None and len(possible_moves) == 0:
+                chosen_move = -1
+                dice_rolled = False
+            else:
+                continue
+
 
         # update game status
-        values[game_board.dice.value] += 1
-        game_board.make_move(chosen_move)
-        game_board.roll_dice()
+        print("Updating Game Status")
+        if dice_rolled:
+            game_board.roll_dice()
+            values[game_board.dice.value] += 1
+            loop_counter += 1
+            possible_moves = game_board.possible_moves()
+        else:
+            game_board.make_move(chosen_move)
+            game_over, victory = game_board.check_game_over_condition()
+            running = not game_over
 
         # render
-        quit_game = display_board(game_board.board_string)
+        if dice_rolled:
+            print(f"Move {loop_counter}: {game_board.turn} rolled a {game_board.dice.value}")
+            print(f"Possible moves are {possible_moves}")
+            tabletop.setup_table(game_string=game_board.board_string, dice_roll=game_board.dice.value)
+        else:
+            print(f"Making move {tile_value}")
+            tabletop.setup_table(game_string=game_board.board_string, dice_roll=None)
+        display_board(game_board.board_string)
+
+        if not running and victory:
+            print(f"Congratulations {victory}! You have won.")
 
     print()
 
