@@ -1,0 +1,5 @@
+#Folders:
+.vscode/
+env/
+__pycache__/
+
